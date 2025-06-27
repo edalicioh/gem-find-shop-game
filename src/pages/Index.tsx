@@ -3,6 +3,7 @@ import SearchBar from '@/components/SearchBar';
 import TagFilter from '@/components/TagFilter';
 import GemCard from '@/components/GemCard';
 import GemListItem from '@/components/GemListItem';
+import GemDetailsModal from '@/components/GemDetailsModal';
 import ViewToggle from '@/components/ViewToggle';
 import { getDocumentsPaginated, getDocumentsCount, getConsoles } from '../services/firestoreService';
 import {
@@ -25,6 +26,10 @@ interface Game {
   type?: string;
   rarity?: string;
   link?: string;
+  description?: string;
+  version?: string;
+  size?: string;
+  releaseDate?: string;
 }
 
 const Index = () => {
@@ -36,7 +41,9 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [lastDocs, setLastDocs] = useState<any[]>([]);
-  const [tags, setTags] = useState<string[]>(['Todas']); // Tags dinâmicas baseadas nos consoles
+  const [tags, setTags] = useState<string[]>(['Todas']);
+  const [selectedGem, setSelectedGem] = useState<Game | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const itemsPerPage = 20;
   const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -77,7 +84,11 @@ const Index = () => {
         ...game,
         name: game.titulo, // Mapear titulo para name
         type: game.console?.name || game.console_id, // Console como tipo
-        rarity: 'Comum' // Valor padrão ou buscar de outro campo
+        rarity: 'Comum', // Valor padrão ou buscar de outro campo
+        description: `Jogo clássico de ${game.console?.name || game.console_id} com jogabilidade única e gráficos marcantes da época.`,
+        version: '1.0',
+        size: '2.5 GB',
+        releaseDate: '2005'
       }));
 
       console.log('Fetched games:', mappedGames);
@@ -140,6 +151,16 @@ const Index = () => {
     loadGames(page);
   };
 
+  const handleGemClick = (gem: Game) => {
+    setSelectedGem(gem);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedGem(null);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-700">
       <div className="container mx-auto px-4 py-8">
@@ -196,6 +217,7 @@ const Index = () => {
                     type={game.type || game.console_id}
                     rarity={game.rarity || 'Comum'}
                     link={game.link || '#'}
+                    onClick={() => handleGemClick(game)}
                   />
                 ))}
               </div>
@@ -208,6 +230,7 @@ const Index = () => {
                     type={game.type || game.console_id}
                     rarity={game.rarity || 'Comum'}
                     link={game.link || '#'}
+                    onClick={() => handleGemClick(game)}
                   />
                 ))}
               </div>
@@ -294,6 +317,24 @@ const Index = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de detalhes */}
+      {selectedGem && (
+        <GemDetailsModal
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          gem={{
+            name: selectedGem.name || selectedGem.titulo,
+            type: selectedGem.type || selectedGem.console_id,
+            rarity: selectedGem.rarity || 'Comum',
+            link: selectedGem.link || '#',
+            description: selectedGem.description,
+            version: selectedGem.version,
+            size: selectedGem.size,
+            releaseDate: selectedGem.releaseDate
+          }}
+        />
+      )}
     </div>
   );
 };
