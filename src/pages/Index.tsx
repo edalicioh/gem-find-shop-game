@@ -5,7 +5,7 @@ import GemCard from '@/components/GemCard';
 import GemListItem from '@/components/GemListItem';
 import GemDetailsModal from '@/components/GemDetailsModal';
 import ViewToggle from '@/components/ViewToggle';
-import { getDocumentsPaginated, getDocumentsCount, getConsoles } from '../services/firestoreService';
+import { getDocumentsPaginated, getDocumentsCount, getPlatforms,updateDocument } from '../services/firestoreService';
 import {
   Pagination,
   PaginationContent,
@@ -15,11 +15,14 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 
+const API_KEY = import.meta.env.VITE_RAWG_API_KEY;
+
 interface Game {
   id: string;
   titulo: string;
-  console_id: string;
-  console?: {
+  platform_id: string;
+  platform?: {
+    id: string;
     name: string;
   };
   name?: string;
@@ -44,18 +47,18 @@ const Index = () => {
   const [tags, setTags] = useState<string[]>(['Todas']);
   const [selectedGem, setSelectedGem] = useState<Game | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   const itemsPerPage = 20;
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // Carregar consoles para as tags
-  const loadConsoles = async () => {
+  // Carregar plataformas para as tags
+  const loadPlatforms = async () => {
     try {
-      const consoles = await getConsoles();
-      const consoleTags = ['Todas', ...consoles.map(console => console.name || console.id)];
-      setTags(consoleTags);
+      const platforms = await getPlatforms();
+      const platformTags = ['Todas', ...platforms.map(platform => platform.name || platform.id)];
+      setTags(platformTags);
     } catch (error) {
-      console.error('Erro ao carregar consoles:', error);
+      console.error('Erro ao carregar plataformas:', error);
       setTags(['Todas', 'Xbox', 'PSP', 'PS2']); // Fallback para tags fixas
     }
   };
@@ -71,8 +74,8 @@ const Index = () => {
       }
 
       const result = await getDocumentsPaginated(
-        'games', 
-        itemsPerPage, 
+        'games',
+        itemsPerPage,
         lastDoc,
         searchTerm,
         selectedTag
@@ -82,18 +85,18 @@ const Index = () => {
       // Mapear dados para manter compatibilidade com componentes existentes
       const mappedGames = result.documents.map(game => ({
         ...game,
-        name: game.titulo, // Mapear titulo para name
-        type: game.console?.name || game.console_id, // Console como tipo
-        rarity: 'Comum', // Valor padrão ou buscar de outro campo
-        description: `Jogo clássico de ${game.console?.name || game.console_id} com jogabilidade única e gráficos marcantes da época.`,
+        name: game.titulo,
+        type: game.platform?.name || game.platform_id || 'Desconhecido',
+        rarity: 'Comum',
+        description: `Jogo clássico de ${game.platform?.name || 'plataforma desconhecida'} com jogabilidade única.`,
         version: '1.0',
         size: '2.5 GB',
         releaseDate: '2005'
       }));
 
-      console.log('Fetched games:', mappedGames);
+      console.log('Jogos mapeados com plataformas:', mappedGames);
       setGames(mappedGames);
-      
+
       // Atualizar array de lastDocs
       if (reset) {
         setLastDocs([result.lastDoc]);
@@ -122,9 +125,9 @@ const Index = () => {
     }
   };
 
-  // Carregar consoles na inicialização
+  // Carregar plataformas na inicialização
   useEffect(() => {
-    loadConsoles();
+    loadPlatforms();
   }, []);
 
   // Carregar dados iniciais
@@ -133,7 +136,7 @@ const Index = () => {
     loadGames(1, true);
     setCurrentPage(1);
     setLastDocs([]);
-  }, [selectedTag]); // Recarregar quando o filtro de console mudar
+  }, [selectedTag]); // Recarregar quando o filtro de plataforma mudar
 
   // Recarregar quando o termo de busca mudar (com debounce)
   useEffect(() => {
@@ -153,8 +156,105 @@ const Index = () => {
 
   const handleGemClick = (gem: Game) => {
     setSelectedGem(gem);
+    buscarJogoPorNomeEPlataforma(gem)
     setIsModalOpen(true);
   };
+
+
+
+  async function buscarJogoPorNomeEPlataforma(gem) {
+    if (!gem?.platform_id || !gem?.name) {
+      console.warn('Dados incompletos para busca:', gem);
+      return;
+    }
+
+    const urlBusca = `https://api.rawg.io/api/games?key=${API_KEY}&search=${encodeURIComponent(gem.name)}&platforms=${gem.platform_id}&page_size=1`;
+
+    try {
+      const response = await fetch(urlBusca);
+      const data = await response.json();
+
+      if (!data.results || data.results.length === 0) {
+        console.log('Jogo não encontrado.');
+        return;
+      }
+
+      const jogoBase = data.results[0];
+
+      // Requisição de detalhes
+      const urlDetalhes = `https://api.rawg.io/api/games/${jogoBase.id}?key=${API_KEY}`;
+      const responseDetalhes = await fetch(urlDetalhes);
+      const detalhes = await responseDetalhes.json();
+
+      const resultado = {
+        titulo: jogoBase.name,
+        lancamento: jogoBase.released,
+        imagem: jogoBase.background_image,
+        plataformas: jogoBase.platforms?.map(p => p.platform.name) || [],
+        descricao: detalhes.description_raw,
+        score: detalhes.metacritic
+      };
+
+      console.log('Dados obtidos da API:', resultado);
+
+      // Update Firebase record with the fetched data
+      try {
+        const updateData = {
+          // Keep existing data and add new fields from RAWG API
+          rawg_data: {
+            name: resultado.titulo,
+            released: resultado.lancamento,
+            background_image: resultado.imagem,
+            platforms: resultado.plataformas,
+            description: resultado.descricao,
+            metacritic_score: resultado.score,
+            updated_at: new Date().toISOString()
+          },
+          // Update description if it was generic
+          description: resultado.descricao || gem.description,
+          // Add release date if available
+          releaseDate: resultado.lancamento || gem.releaseDate,
+          // Mark as enriched with RAWG data
+          enriched_with_rawg: true,
+          last_rawg_update: new Date().toISOString()
+        };
+
+        await updateDocument('games', gem.id, updateData);
+        console.log('Registro atualizado no Firebase com sucesso');
+
+        // Update the local state to reflect the changes
+        setGames(prevGames =>
+          prevGames.map(game =>
+            game.id === gem.id
+              ? {
+                ...game,
+                ...updateData,
+                description: updateData.description,
+                releaseDate: updateData.releaseDate
+              }
+              : game
+          )
+        );
+
+        // Update selectedGem if it's the same game
+        if (selectedGem?.id === gem.id) {
+          setSelectedGem(prev => prev ? {
+            ...prev,
+            ...updateData,
+            description: updateData.description,
+            releaseDate: updateData.releaseDate
+          } : null);
+        }
+
+      } catch (firebaseError) {
+        console.error('Erro ao atualizar registro no Firebase:', firebaseError);
+      }
+
+    } catch (error) {
+      console.error('Erro na requisição da API:', error.message);
+    }
+  }
+
 
   const handleModalClose = () => {
     setIsModalOpen(false);
@@ -169,20 +269,20 @@ const Index = () => {
           <h1 className="text-5xl font-bold bg-gradient-to-r from-neon-purple via-neon-blue to-neon-green bg-clip-text text-transparent mb-4">
             Game Market
           </h1>
-          <p className="text-gray-400 text-xl">Descubra os jogos mais raros para seus consoles</p>
+          <p className="text-gray-400 text-xl">Descubra os jogos mais raros para suas plataformas</p>
         </div>
 
         {/* Search Bar */}
         <div className="mb-8">
-          <SearchBar 
+          <SearchBar
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
           />
         </div>
 
-        {/* Console Filter */}
+        {/* Platform Filter */}
         <div className="mb-8">
-          <TagFilter 
+          <TagFilter
             tags={tags}
             selectedTag={selectedTag}
             onTagSelect={setSelectedTag}
@@ -214,7 +314,7 @@ const Index = () => {
                   <GemCard
                     key={`${game.id}-${index}`}
                     name={game.name || game.titulo}
-                    type={game.type || game.console_id}
+                    type={game.type || game.platform_id}
                     rarity={game.rarity || 'Comum'}
                     link={game.link || '#'}
                     onClick={() => handleGemClick(game)}
@@ -227,7 +327,7 @@ const Index = () => {
                   <GemListItem
                     key={`${game.id}-${index}`}
                     name={game.name || game.titulo}
-                    type={game.type || game.console_id}
+                    type={game.type || game.platform_id}
                     rarity={game.rarity || 'Comum'}
                     link={game.link || '#'}
                     onClick={() => handleGemClick(game)}
@@ -242,17 +342,16 @@ const Index = () => {
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious 
+                      <PaginationPrevious
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
                           if (currentPage > 1) handlePageChange(currentPage - 1);
                         }}
-                        className={`${
-                          currentPage === 1 
-                            ? 'opacity-50 cursor-not-allowed' 
+                        className={`${currentPage === 1
+                            ? 'opacity-50 cursor-not-allowed'
                             : 'hover:bg-neon-purple/20 text-white border-neon-purple/40'
-                        }`}
+                          }`}
                       />
                     </PaginationItem>
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
@@ -266,7 +365,7 @@ const Index = () => {
                       } else {
                         page = currentPage - 2 + i;
                       }
-                      
+
                       return (
                         <PaginationItem key={page}>
                           <PaginationLink
@@ -276,11 +375,10 @@ const Index = () => {
                               handlePageChange(page);
                             }}
                             isActive={currentPage === page}
-                            className={`${
-                              currentPage === page
+                            className={`${currentPage === page
                                 ? 'bg-gradient-to-r from-neon-purple to-neon-blue text-white'
                                 : 'text-white border-neon-purple/40 hover:bg-neon-purple/20'
-                            }`}
+                              }`}
                           >
                             {page}
                           </PaginationLink>
@@ -288,17 +386,16 @@ const Index = () => {
                       );
                     })}
                     <PaginationItem>
-                      <PaginationNext 
+                      <PaginationNext
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
                           if (currentPage < totalPages) handlePageChange(currentPage + 1);
                         }}
-                        className={`${
-                          currentPage === totalPages 
-                            ? 'opacity-50 cursor-not-allowed' 
+                        className={`${currentPage === totalPages
+                            ? 'opacity-50 cursor-not-allowed'
                             : 'hover:bg-neon-purple/20 text-white border-neon-purple/40'
-                        }`}
+                          }`}
                       />
                     </PaginationItem>
                   </PaginationContent>
@@ -325,7 +422,7 @@ const Index = () => {
           onClose={handleModalClose}
           gem={{
             name: selectedGem.name || selectedGem.titulo,
-            type: selectedGem.type || selectedGem.console_id,
+            type: selectedGem.type || selectedGem.platform_id,
             rarity: selectedGem.rarity || 'Comum',
             link: selectedGem.link || '#',
             description: selectedGem.description,
