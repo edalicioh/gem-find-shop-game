@@ -4,13 +4,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCVurrYeMJ6QBI7cJiWh7gR71LsTRQohGk",
-    authDomain: "retrobdagame.firebaseapp.com",
-    projectId: "retrobdagame",
-    storageBucket: "retrobdagame.firebasestorage.app",
-    messagingSenderId: "791931620238",
-    appId: "1:791931620238:web:beb9ade1cb1e4ce8e2b2df",
-    measurementId: "G-YCVD6J97LP"
+    apiKey: import.meta.env.VITE_API_KEY,
+    authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_APP_ID,
+    measurementId: import.meta.env.VITE_MEASUREMENT_ID
   };
 
 

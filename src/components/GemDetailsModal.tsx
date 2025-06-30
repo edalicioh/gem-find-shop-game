@@ -21,6 +21,7 @@ interface GemDetailsModalProps {
     version?: string;
     size?: string;
     releaseDate?: string;
+    image?: string;
   };
 }
 
@@ -42,9 +43,11 @@ const GemDetailsModal: React.FC<GemDetailsModalProps> = ({ isOpen, onClose, gem 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-dark-800 border-neon-purple/30 text-white max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+      <DialogContent className="bg-dark-800 border-neon-purple/30 text-white w-[80vw] max-h-[80vh] flex flex-col p-0">
+        <img src={gem.image} alt={gem.name} className="w-full h-48 object-cover rounded-t-lg" />
+        <div className="p-6 flex-grow overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Gem className="h-5 w-5 text-neon-purple" />
             {gem.name}
           </DialogTitle>
@@ -112,6 +115,7 @@ const GemDetailsModal: React.FC<GemDetailsModalProps> = ({ isOpen, onClose, gem 
               </Button>
             </a>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

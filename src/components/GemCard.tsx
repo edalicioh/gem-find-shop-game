@@ -9,9 +9,10 @@ interface GemCardProps {
   rarity: string;
   link?: string;
   onClick?: () => void;
+  image?: string;
 }
 
-const GemCard: React.FC<GemCardProps> = ({ name, type, rarity, link, onClick }) => {
+const GemCard: React.FC<GemCardProps> = ({ name, type, rarity, link, onClick, image }) => {
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'Comum':
@@ -28,9 +29,14 @@ const GemCard: React.FC<GemCardProps> = ({ name, type, rarity, link, onClick }) 
   };
 
   return (
-    <div className="gem-card group h-full flex flex-col cursor-pointer" onClick={onClick}>
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-3">
+    <div className="gem-card group h-full flex flex-col cursor-pointer bg-dark-800 rounded-lg overflow-hidden shadow-lg transition-all duration-300 hover:shadow-neon-purple/30 hover:scale-105" onClick={onClick}>
+      <div className="relative">
+        <img src={image || '/placeholder.svg'} alt={name} className="w-full h-40 object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark-800 to-transparent"></div>
+      </div>
+      <div className="flex-1 p-4 flex flex-col">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="flex-1 min-w-0">
               <h3 className="text-white font-semibold text-lg overflow-hidden text-ellipsis line-clamp-2">{name}</h3>
@@ -58,6 +64,7 @@ const GemCard: React.FC<GemCardProps> = ({ name, type, rarity, link, onClick }) 
             Baixar
           </Button>
         </a>
+      </div>
       </div>
     </div>
   );

@@ -33,6 +33,11 @@ interface Game {
   version?: string;
   size?: string;
   releaseDate?: string;
+  image?: string;
+  rawg_data?: {
+    background_image?: string;
+    metacritic_score?: string;
+  }
 }
 
 const Index = () => {
@@ -43,10 +48,11 @@ const Index = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [lastDocs, setLastDocs] = useState<any[]>([]);
+  const [lastDocs, setLastDocs] = useState<unknown[]>([]);
   const [tags, setTags] = useState<string[]>(['Todas']);
   const [selectedGem, setSelectedGem] = useState<Game | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const itemsPerPage = 20;
   const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -64,7 +70,7 @@ const Index = () => {
   };
 
   // Função para carregar jogos
-  const loadGames = async (page: number = 1, reset: boolean = false) => {
+  const loadGames = React.useCallback(async (page: number = 1, reset: boolean = false) => {
     setLoading(true);
     try {
       // Determinar o lastDoc baseado na página
@@ -87,11 +93,8 @@ const Index = () => {
         ...game,
         name: game.titulo,
         type: game.platform?.name || game.platform_id || 'Desconhecido',
-        rarity: 'Comum',
-        description: `Jogo clássico de ${game.platform?.name || 'plataforma desconhecida'} com jogabilidade única.`,
-        version: '1.0',
-        size: '2.5 GB',
-        releaseDate: '2005'
+        rarity: game?.rawg_data?.metacritic_score || '-',
+        image: game?.rawg_data?.background_image
       }));
 
       console.log('Jogos mapeados com plataformas:', mappedGames);
@@ -112,10 +115,10 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [lastDocs, searchTerm, selectedTag, itemsPerPage]);
 
   // Função para carregar contagem total
-  const loadTotalCount = async () => {
+  const loadTotalCount = React.useCallback(async () => {
     try {
       const count = await getDocumentsCount('games', selectedTag);
       setTotalCount(count);
@@ -123,7 +126,7 @@ const Index = () => {
       console.error('Erro ao carregar contagem:', error);
       setTotalCount(0);
     }
-  };
+  }, [selectedTag]);
 
   // Carregar plataformas na inicialização
   useEffect(() => {
@@ -155,14 +158,18 @@ const Index = () => {
   };
 
   const handleGemClick = (gem: Game) => {
-    setSelectedGem(gem);
     buscarJogoPorNomeEPlataforma(gem)
+    setSelectedGem(gem);
     setIsModalOpen(true);
   };
 
 
 
-  async function buscarJogoPorNomeEPlataforma(gem) {
+  async function buscarJogoPorNomeEPlataforma(gem: Game) {
+    console.log('Fetching game details for:', gem);
+    if(gem.rawg_data) {
+      return;
+    }
     if (!gem?.platform_id || !gem?.name) {
       console.warn('Dados incompletos para busca:', gem);
       return;
@@ -210,11 +217,8 @@ const Index = () => {
             metacritic_score: resultado.score,
             updated_at: new Date().toISOString()
           },
-          // Update description if it was generic
           description: resultado.descricao || gem.description,
-          // Add release date if available
           releaseDate: resultado.lancamento || gem.releaseDate,
-          // Mark as enriched with RAWG data
           enriched_with_rawg: true,
           last_rawg_update: new Date().toISOString()
         };
@@ -262,40 +266,62 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-700">
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-700 text-white">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
+        <header className="text-center mb-12">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-neon-purple via-neon-blue to-neon-green bg-clip-text text-transparent mb-4">
             Game Market
           </h1>
-          <p className="text-gray-400 text-xl">Descubra os jogos mais raros para suas plataformas</p>
-        </div>
+          <p className="text-gray-400 text-xl mb-8">Descubra os jogos mais raros para suas plataformas</p>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <SearchBar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-          />
-        </div>
+          {/* Centralized Search Bar */}
+          <div className="max-w-md mx-auto">
+            <SearchBar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+            />
+          </div>
+        </header>
 
-        {/* Platform Filter */}
-        <div className="mb-8">
-          <TagFilter
-            tags={tags}
-            selectedTag={selectedTag}
-            onTagSelect={setSelectedTag}
-          />
-        </div>
+        {/* Main Content */}
+        <main className="container mx-auto">
+                        {/* Controls Row - Count on left, toggles on right */}
+                        <div className="flex justify-between items-center mb-8">
+                <p className="text-neon-blue text-lg whitespace-nowrap">
+                  {loading ? 'Carregando...' : `${totalCount} jogo${totalCount !== 1 ? 's' : ''} encontrado${totalCount !== 1 ? 's' : ''}`}
+                </p>
+                <div className="flex items-center gap-4">
+                  <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+                  <button
+                    className="md:hidden p-2 bg-neon-purple/20 rounded-lg"
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  >
+                    Filtros
+                  </button>
+                </div>
+              </div>
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Sidebar for Filters */}
+            <aside className={`md:w-1/4 lg:w-1/5 ${isSidebarOpen ? 'block' : 'hidden'} md:block`}>
+              <div className="bg-dark-800 p-6 rounded-lg shadow-lg">
+                <h2 className="text-2xl font-bold mb-6 text-neon-purple">Filtros</h2>
+                <TagFilter
+                  tags={tags}
+                  selectedTag={selectedTag}
+                  onTagSelect={(tag) => {
+                    setSelectedTag(tag);
+                    if (window.innerWidth < 768) {
+                      setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                    }
+                  }}
+                />
+              </div>
+            </aside>
 
-        {/* View Controls and Results Count */}
-        <div className="flex justify-between items-center mb-8">
-          <p className="text-neon-blue text-lg">
-            {loading ? 'Carregando...' : `${games.length} jogo${games.length !== 1 ? 's' : ''} encontrado${games.length !== 1 ? 's' : ''}`}
-          </p>
-          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
-        </div>
+            {/* Content Area */}
+            <div className="flex-1">
+              
+
 
         {/* Loading State */}
         {loading && (
@@ -309,14 +335,14 @@ const Index = () => {
         {!loading && games.length > 0 ? (
           <>
             {viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
                 {games.map((game, index) => (
                   <GemCard
                     key={`${game.id}-${index}`}
                     name={game.name || game.titulo}
                     type={game.type || game.platform_id}
                     rarity={game.rarity || 'Comum'}
-                    link={game.link || '#'}
+                    image={game.image}
                     onClick={() => handleGemClick(game)}
                   />
                 ))}
@@ -329,7 +355,7 @@ const Index = () => {
                     name={game.name || game.titulo}
                     type={game.type || game.platform_id}
                     rarity={game.rarity || 'Comum'}
-                    link={game.link || '#'}
+                    image={game.image}
                     onClick={() => handleGemClick(game)}
                   />
                 ))}
@@ -413,26 +439,30 @@ const Index = () => {
             <p className="text-gray-400">Tente ajustar seus filtros de busca</p>
           </div>
         )}
-      </div>
+          </div>
+        </div>
 
-      {/* Modal de detalhes */}
-      {selectedGem && (
-        <GemDetailsModal
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          gem={{
-            name: selectedGem.name || selectedGem.titulo,
-            type: selectedGem.type || selectedGem.platform_id,
-            rarity: selectedGem.rarity || 'Comum',
-            link: selectedGem.link || '#',
-            description: selectedGem.description,
-            version: selectedGem.version,
-            size: selectedGem.size,
-            releaseDate: selectedGem.releaseDate
-          }}
-        />
-      )}
+        {/* Modal de detalhes */}
+        {selectedGem && (
+          <GemDetailsModal
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            gem={{
+              name: selectedGem.name || selectedGem.titulo,
+              type: selectedGem.type || selectedGem.platform_id,
+              rarity: selectedGem.rarity || 'Comum',
+              link: selectedGem.link || '#',
+              description: selectedGem.description,
+              version: selectedGem.version,
+              size: selectedGem.size,
+              releaseDate: selectedGem.releaseDate,
+              image: selectedGem.image || selectedGem.rawg_data?.background_image
+            }}
+          />
+        )}
+      </main>
     </div>
+  </div>
   );
 };
 

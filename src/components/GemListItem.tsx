@@ -9,9 +9,10 @@ interface GemListItemProps {
   rarity: string;
   link?: string;
   onClick?: () => void;
+  image?: string;
 }
 
-const GemListItem: React.FC<GemListItemProps> = ({ name, type, rarity, link, onClick }) => {
+const GemListItem: React.FC<GemListItemProps> = ({ name, type, rarity, link, onClick, image }) => {
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'Comum':
@@ -28,8 +29,9 @@ const GemListItem: React.FC<GemListItemProps> = ({ name, type, rarity, link, onC
   };
 
   return (
-    <div className="gem-card p-4 flex items-center justify-between cursor-pointer" onClick={onClick}>
+    <div className="gem-list-item bg-dark-800 p-4 flex items-center justify-between cursor-pointer rounded-lg shadow-lg transition-all duration-300 hover:shadow-neon-purple/30 hover:scale-105" onClick={onClick}>
       <div className="flex items-center gap-4 flex-1 min-w-0">
+        <img src={image || '/placeholder.svg'} alt={name} className="w-16 h-16 object-cover rounded-md" />
         <div className="flex-1 min-w-0">
           <h3 className="text-white font-semibold text-lg overflow-hidden text-ellipsis line-clamp-1">{name}</h3>
           <p className="text-gray-400 text-sm">{type}</p>
